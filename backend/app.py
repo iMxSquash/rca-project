@@ -1,3 +1,5 @@
+"""Flask REST API for the Task Manager application."""
+
 import json
 import os
 from datetime import datetime, timezone

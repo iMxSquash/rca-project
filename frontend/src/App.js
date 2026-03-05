@@ -1,3 +1,7 @@
+/**
+ * @file App.js
+ * @description Main application component. Manages task state, filtering, and API interactions.
+ */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import TaskList from './components/TaskList';
@@ -6,13 +10,20 @@ import SearchBar from './components/SearchBar';
 import Stats from './components/Stats';
 import './App.css';
 
+/** Base URL for backend API calls (proxied via nginx). */
 const API_URL = '/api';
 
+/**
+ * Root application component.
+ * Handles task CRUD operations, filtering, and search.
+ * @returns {JSX.Element} The rendered application.
+ */
 function App() {
   const [tasks, setTasks] = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
+  /** Fetch tasks from the API with the current filter applied. */
   const fetchTasks = async () => {
     try {
       setLoading(true);
@@ -29,18 +40,35 @@ function App() {
 
   useEffect(() => { fetchTasks(); }, [filter]);
 
+  /**
+   * Create a new task via the API.
+   * @param {Object} task - The task data with title and optional description.
+   */
   const addTask = async (task) => {
     try { await axios.post(`${API_URL}/tasks`, task); fetchTasks(); }
     catch (err) { console.error('Failed to create task:', err); }
   };
+  /**
+   * Toggle a task's active status.
+   * @param {number} id - The task ID.
+   * @param {boolean} isActive - The current active state.
+   */
   const toggleTask = async (id, isActive) => {
     try { await axios.put(`${API_URL}/tasks/${id}`, { is_active: !isActive }); fetchTasks(); }
     catch (err) { console.error('Failed to update task:', err); }
   };
+  /**
+   * Delete a task by ID.
+   * @param {number} id - The task ID to delete.
+   */
   const deleteTask = async (id) => {
     try { await axios.delete(`${API_URL}/tasks/${id}`); fetchTasks(); }
     catch (err) { console.error('Failed to delete task:', err); }
   };
+  /**
+   * Search tasks by query string, or reload all tasks if query is empty.
+   * @param {string} query - The search query.
+   */
   const searchTasks = async (query) => {
     if (!query.trim()) { fetchTasks(); return; }
     try { const res = await axios.get(`${API_URL}/search`, { params: { q: query } }); setTasks(res.data); }
