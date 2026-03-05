@@ -1,4 +1,4 @@
-name: "🔍 Linting & Security"
+name: "Linting & Security"
 
 on:
   push:
