@@ -1,4 +1,5 @@
 from model import Task  # noqa
+import json
 import os
 from datetime import datetime, timezone
 
@@ -11,8 +12,6 @@ app = Flask(__name__)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgres://taskuser:taskpass@db:5432/taskdb")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-
-search_history = []
 
 def get_db():
     if "db" not in g:
@@ -142,7 +141,9 @@ def search_tasks():
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM tasks WHERE title ILIKE %s OR description ILIKE %s", (f"%{q}%", f"%{q}%"))
     results = cur.fetchall()
-    search_history.append({"query": q, "results_count": len(results), "timestamp": datetime.now().isoformat()})
+    r = get_redis()
+    r.lpush("search_history", json.dumps({"query": q, "results_count": len(results), "timestamp": datetime.now().isoformat()}))
+    r.ltrim("search_history", 0, 99)
     serialized = []
     for t in results:
         serialized.append({
