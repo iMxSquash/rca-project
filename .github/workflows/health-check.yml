@@ -63,6 +63,14 @@ jobs:
           mypy app.py model.py
         continue-on-error: true
 
+      - name: Run tests
+        if: always()
+        working-directory: backend
+        run: |
+          pip3 install -q pytest pytest-cov flask==3.0.0 psycopg2-binary==2.9.9 redis==5.0.1 flask-cors==4.0.0
+          pytest tests/ -v --tb=short
+        continue-on-error: true
+
       - name: Run health checks
         if: always()
         run: python3 checks/run_checks.py
