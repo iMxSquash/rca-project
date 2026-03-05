@@ -11,7 +11,7 @@ import redis
 app = Flask(__name__)
 CORS(app)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgres://taskuser:taskpass@db:5432/taskdb")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://taskuser:taskpass@db:5432/taskdb")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 def get_db():
@@ -50,7 +50,17 @@ def after_request(response):
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()})
+    result = {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    try:
+        db = get_db()
+        cur = db.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        result["database"] = "ok"
+    except Exception:
+        result["database"] = "error"
+        result["status"] = "degraded"
+    return jsonify(result)
 
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks():
