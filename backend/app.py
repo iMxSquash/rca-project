@@ -10,7 +10,7 @@ import redis
 app = Flask(__name__)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgres://taskuser:taskpass@db:5432/taskdb")
-REDIS_URL = os.environ["REDIS_URL"]
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 search_history = []
 
