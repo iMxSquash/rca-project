@@ -95,6 +95,7 @@ def list_tasks():
 def create_task():
     data = request.get_json()
     if not data or not data.get("title"):
+        app.logger.warning("POST /api/tasks - 400 Title is required")
         return jsonify({"error": "Title is required"}), 400
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -106,6 +107,7 @@ def create_task():
         task = cur.fetchone()
     except psycopg2.errors.UniqueViolation:
         db.rollback()
+        app.logger.warning(f"POST /api/tasks - 409 Duplicate title: {data.get('title')}")
         return jsonify({"error": "A task with this title already exists"}), 409
     r = get_redis()
     r.delete("stats")
@@ -115,6 +117,22 @@ def create_task():
         "updated_at": task["updated_at"].isoformat(),
     }), 201
 
+@app.route("/api/tasks/<int:task_id>", methods=["GET"])
+def get_task(task_id):
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+    task = cur.fetchone()
+    if not task:
+        app.logger.warning(f"GET /api/tasks/{task_id} - 404 Not found")
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({
+        "id": task["id"], "title": task["title"], "description": task["description"],
+        "is_active": task["is_active"],
+        "created_at": task["created_at"].isoformat() if task["created_at"] else None,
+        "updated_at": task["updated_at"].isoformat() if task["updated_at"] else None,
+    })
+
 @app.route("/api/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id):
     data = request.get_json()
@@ -123,6 +141,7 @@ def update_task(task_id):
     cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
     task = cur.fetchone()
     if not task:
+        app.logger.warning(f"PUT /api/tasks/{task_id} - 404 Not found")
         return jsonify({"error": "Not found"}), 404
     title = data.get("title", task["title"])
     description = data.get("description", task["description"])
