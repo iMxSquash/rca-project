@@ -63,6 +63,14 @@ jobs:
           mypy app.py model.py
         continue-on-error: true
 
+      - name: Run frontend tests
+        if: always()
+        working-directory: frontend
+        run: |
+          npm install
+          npx react-scripts test --watchAll=false --ci
+        continue-on-error: true
+
       - name: Run tests
         if: always()
         working-directory: backend
