@@ -36,7 +36,7 @@ def log_request():
     try:
         g.start_time = datetime.now()
         app.logger.info(f"{request.method} {request.path}")
-    except:
+    except Exception:
         pass
 
 @app.after_request
@@ -44,7 +44,7 @@ def after_request(response):
     try:
         duration = datetime.now() - g.start_time
         app.logger.info(f"{request.method} {request.path} -> {response.status_code} ({duration.total_seconds():.3f}s)")
-    except:
+    except Exception:
         pass
     return response
 
