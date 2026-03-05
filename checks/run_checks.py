@@ -40,6 +40,7 @@ def check(name):
 
 @check("backend_builds")
 def check_backend_builds():
+    """Verify that the backend Docker image builds successfully."""
     result = subprocess.run(
         ["docker", "compose", "build", "backend"],
         capture_output=True, text=True, timeout=120
@@ -49,6 +50,7 @@ def check_backend_builds():
 
 @check("frontend_builds")
 def check_frontend_builds():
+    """Verify that the frontend Docker image builds successfully."""
     result = subprocess.run(
         ["docker", "compose", "build", "frontend"],
         capture_output=True, text=True, timeout=120
@@ -58,6 +60,7 @@ def check_frontend_builds():
 
 @check("frontend_port")
 def check_frontend_port():
+    """Check that the frontend is reachable on port 3000 and returns HTTP 200."""
     try:
         import requests
         r = requests.get(FRONTEND, timeout=10)
@@ -68,6 +71,7 @@ def check_frontend_port():
 
 @check("redis_connected")
 def check_redis_connected():
+    """Verify that Redis is connected with no connection errors in backend logs."""
     try:
         import requests
         logs = subprocess.run(
@@ -90,6 +94,7 @@ def check_redis_connected():
 
 @check("db_schema_valid")
 def check_db_schema_valid():
+    """Verify that the tasks table exists with expected columns in PostgreSQL."""
     try:
         result = subprocess.run(
             ["docker", "compose", "exec", "-T", "db",
@@ -105,6 +110,7 @@ def check_db_schema_valid():
 
 @check("backend_imports")
 def check_backend_imports():
+    """Check that no ImportError or ModuleNotFoundError appears in backend logs."""
     try:
         logs = subprocess.run(
             ["docker", "compose", "logs", "backend"],
@@ -122,6 +128,7 @@ def check_backend_imports():
 
 @check("db_connection")
 def check_db_connection():
+    """Verify the backend can connect to the database via the health endpoint."""
     try:
         import requests
         r = requests.get(f"{BACKEND}/health", timeout=10)
@@ -132,6 +139,7 @@ def check_db_connection():
 
 @check("api_query_works")
 def check_api_query_works():
+    """Verify the GET /api/tasks endpoint returns a valid JSON list."""
     try:
         import requests
         r = requests.get(f"{BACKEND}/api/tasks", timeout=10)
@@ -142,6 +150,7 @@ def check_api_query_works():
 
 @check("frontend_api_call")
 def check_frontend_api_call():
+    """Verify the frontend HTML or JS bundles reference the /api/tasks endpoint."""
     try:
         import requests, re
         r = requests.get(FRONTEND, timeout=10)
@@ -163,6 +172,7 @@ def check_frontend_api_call():
 
 @check("cors_works")
 def check_cors_works():
+    """Verify CORS headers allow requests from localhost:3000."""
     try:
         import requests
         r = requests.options(
@@ -178,6 +188,7 @@ def check_cors_works():
 
 @check("frontend_deps")
 def check_frontend_deps():
+    """Verify that node_modules are present in the frontend container."""
     try:
         result = subprocess.run(
             ["docker", "compose", "exec", "-T", "frontend",
@@ -191,6 +202,7 @@ def check_frontend_deps():
 
 @check("cache_consistent")
 def check_cache_consistent():
+    """Verify that consecutive stats requests return consistent cached results."""
     try:
         import requests
         r1 = requests.get(f"{BACKEND}/api/stats", timeout=10)
@@ -207,6 +219,7 @@ def check_cache_consistent():
 
 @check("no_duplicates")
 def check_no_duplicates():
+    """Verify that concurrent duplicate task creation is properly rejected."""
     try:
         import requests
         title = f"dup_test_{int(time.time())}"
@@ -227,6 +240,7 @@ def check_no_duplicates():
 
 @check("no_memory_leak")
 def check_no_memory_leak():
+    """Verify that memory usage does not grow excessively after repeated requests."""
     try:
         import requests
         mem_before = _get_container_mem("backend")
@@ -248,6 +262,7 @@ def check_no_memory_leak():
 
 
 def _get_container_mem(service):
+    """Return the memory usage in MiB for a given docker-compose service."""
     try:
         result = subprocess.run(
             ["docker", "compose", "exec", "-T", service, "cat", "/sys/fs/cgroup/memory.current"],
@@ -271,6 +286,7 @@ def _get_container_mem(service):
 
 @check("db_ready_check")
 def check_db_ready_check():
+    """Verify the stack recovers and responds after a full restart."""
     try:
         import requests
         subprocess.run(["docker", "compose", "restart"], capture_output=True, timeout=60)
@@ -290,6 +306,7 @@ def check_db_ready_check():
 
 @check("errors_logged")
 def check_errors_logged():
+    """Verify that error conditions produce visible log entries in the backend."""
     try:
         import requests
         try:
@@ -313,6 +330,7 @@ def check_errors_logged():
 
 @check("timezone_filter")
 def check_timezone_filter():
+    """Verify that tasks created today appear when filtering by today."""
     try:
         import requests
         title = f"tz_test_{int(time.time())}"
@@ -333,6 +351,7 @@ def check_timezone_filter():
 
 @check("no_circular_dep")
 def check_no_circular_dep():
+    """Verify that docker-compose starts without circular dependency errors."""
     try:
         subprocess.run(["docker", "compose", "down"], capture_output=True, timeout=30)
         time.sleep(2)
@@ -361,6 +380,7 @@ def check_no_circular_dep():
 # =============================================================================
 
 def main():
+    """Run all health checks in order and generate the report.json file."""
     print("🩺 Running RCA Health Checks...\n")
 
     all_checks = [v for v in globals().values() if callable(v) and hasattr(v, "_check_name")]
