@@ -158,14 +158,12 @@ def get_stats():
     r = get_redis()
     cached = r.get("stats")
     if cached:
-        import json
         return jsonify(json.loads(cached))
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = true) as active, COUNT(*) FILTER (WHERE is_active = false) as done FROM tasks")
     stats = cur.fetchone()
-    import json
-    r.setex("stats", 1, json.dumps(dict(stats)))
+    r.setex("stats", 300, json.dumps(dict(stats)))
     return jsonify(dict(stats))
 
 if __name__ == "__main__":
