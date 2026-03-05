@@ -16,24 +16,28 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://taskuser:taskpass@db
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 def get_db() -> psycopg2.extensions.connection:
+    """Return the current request's database connection, creating one if needed."""
     if "db" not in g:
         g.db = psycopg2.connect(DATABASE_URL)
         g.db.autocommit = True
     return g.db
 
 def get_redis() -> redis_lib.Redis:  # type: ignore[type-arg]
+    """Return the current request's Redis client, creating one if needed."""
     if "redis" not in g:
         g.redis = redis_lib.from_url(REDIS_URL)
     return g.redis
 
 @app.teardown_appcontext
 def close_db(exception: BaseException | None) -> None:
+    """Close the database connection at the end of the request context."""
     db = g.pop("db", None)
     if db is not None:
         db.close()
 
 @app.before_request
 def log_request() -> None:
+    """Log incoming request method and path, and record the start time."""
     try:
         g.start_time = datetime.now()
         app.logger.info(f"{request.method} {request.path}")
@@ -42,6 +46,7 @@ def log_request() -> None:
 
 @app.after_request
 def after_request(response: Response) -> Response:
+    """Log the response status code and request duration after each request."""
     try:
         duration = datetime.now() - g.start_time
         app.logger.info(f"{request.method} {request.path} -> {response.status_code} ({duration.total_seconds():.3f}s)")
@@ -51,6 +56,7 @@ def after_request(response: Response) -> Response:
 
 @app.route("/health")
 def health() -> Response:
+    """Health check endpoint. Returns service status and database connectivity."""
     result = {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
     try:
         db = get_db()
@@ -65,6 +71,7 @@ def health() -> Response:
 
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks() -> Response:
+    """List all tasks with optional filtering by status or creation date."""
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     status = request.args.get("status")
@@ -94,6 +101,7 @@ def list_tasks() -> Response:
 
 @app.route("/api/tasks", methods=["POST"])
 def create_task() -> Response | tuple[Response, int]:
+    """Create a new task. Requires a unique title in the JSON body."""
     data = request.get_json()
     if not data or not data.get("title"):
         app.logger.warning("POST /api/tasks - 400 Title is required")
@@ -120,6 +128,7 @@ def create_task() -> Response | tuple[Response, int]:
 
 @app.route("/api/tasks/<int:task_id>", methods=["GET"])
 def get_task(task_id: int) -> Response | tuple[Response, int]:
+    """Retrieve a single task by its ID. Returns 404 if not found."""
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
@@ -136,6 +145,7 @@ def get_task(task_id: int) -> Response | tuple[Response, int]:
 
 @app.route("/api/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id: int) -> Response | tuple[Response, int]:
+    """Update an existing task by ID. Returns 404 if the task does not exist."""
     data = request.get_json()
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -162,6 +172,7 @@ def update_task(task_id: int) -> Response | tuple[Response, int]:
 
 @app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id: int) -> tuple[str, int]:
+    """Delete a task by ID and invalidate the stats cache."""
     db = get_db()
     cur = db.cursor()
     cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
@@ -171,6 +182,7 @@ def delete_task(task_id: int) -> tuple[str, int]:
 
 @app.route("/api/search", methods=["GET"])
 def search_tasks() -> Response:
+    """Search tasks by title or description using ILIKE and log the query to Redis."""
     q = request.args.get("q", "")
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -190,6 +202,7 @@ def search_tasks() -> Response:
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats() -> Response:
+    """Return task statistics (total, active, done) with Redis caching."""
     r = get_redis()
     cached = r.get("stats")
     if cached:
