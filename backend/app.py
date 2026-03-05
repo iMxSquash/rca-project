@@ -17,6 +17,7 @@ CORS(app)
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://taskuser:taskpass@db:5432/taskdb")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
+
 def get_db() -> psycopg2.extensions.connection:
     """Return the current request's database connection, creating one if needed."""
     if "db" not in g:
@@ -24,11 +25,13 @@ def get_db() -> psycopg2.extensions.connection:
         g.db.autocommit = True
     return g.db
 
-def get_redis() -> redis_lib.Redis:  # type: ignore[type-arg]
+
+def get_redis() -> redis_lib.Redis:  # type: ignore[no-any-return,type-arg]
     """Return the current request's Redis client, creating one if needed."""
     if "redis" not in g:
         g.redis = redis_lib.from_url(REDIS_URL)
-    return g.redis
+    return g.redis  # type: ignore[no-any-return]
+
 
 @app.teardown_appcontext
 def close_db(exception: BaseException | None) -> None:
@@ -36,6 +39,7 @@ def close_db(exception: BaseException | None) -> None:
     db = g.pop("db", None)
     if db is not None:
         db.close()
+
 
 @app.before_request
 def log_request() -> None:
@@ -46,6 +50,7 @@ def log_request() -> None:
     except Exception:
         pass
 
+
 @app.after_request
 def after_request(response: Response) -> Response:
     """Log the response status code and request duration after each request."""
@@ -55,6 +60,7 @@ def after_request(response: Response) -> Response:
     except Exception:
         pass
     return response
+
 
 @app.route("/health")
 def health() -> Response:
@@ -70,6 +76,7 @@ def health() -> Response:
         result["database"] = "error"
         result["status"] = "degraded"
     return jsonify(result)
+
 
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks() -> Response:
@@ -101,6 +108,7 @@ def list_tasks() -> Response:
         })
     return jsonify(result)
 
+
 @app.route("/api/tasks", methods=["POST"])
 def create_task() -> Response | tuple[Response, int]:
     """Create a new task. Requires a unique title in the JSON body."""
@@ -128,6 +136,7 @@ def create_task() -> Response | tuple[Response, int]:
         "updated_at": task["updated_at"].isoformat(),
     }), 201
 
+
 @app.route("/api/tasks/<int:task_id>", methods=["GET"])
 def get_task(task_id: int) -> Response | tuple[Response, int]:
     """Retrieve a single task by its ID. Returns 404 if not found."""
@@ -144,6 +153,7 @@ def get_task(task_id: int) -> Response | tuple[Response, int]:
         "created_at": task["created_at"].isoformat() if task["created_at"] else None,
         "updated_at": task["updated_at"].isoformat() if task["updated_at"] else None,
     })
+
 
 @app.route("/api/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id: int) -> Response | tuple[Response, int]:
@@ -172,6 +182,7 @@ def update_task(task_id: int) -> Response | tuple[Response, int]:
         "updated_at": updated["updated_at"].isoformat(),
     })
 
+
 @app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id: int) -> tuple[str, int]:
     """Delete a task by ID and invalidate the stats cache."""
@@ -181,6 +192,7 @@ def delete_task(task_id: int) -> tuple[str, int]:
     r = get_redis()
     r.delete("stats")
     return "", 204
+
 
 @app.route("/api/search", methods=["GET"])
 def search_tasks() -> Response:
@@ -202,6 +214,7 @@ def search_tasks() -> Response:
         })
     return jsonify(serialized)
 
+
 @app.route("/api/stats", methods=["GET"])
 def get_stats() -> Response:
     """Return task statistics (total, active, done) with Redis caching."""
@@ -216,5 +229,6 @@ def get_stats() -> Response:
     r.setex("stats", 300, json.dumps(dict(stats)))
     return jsonify(dict(stats))
 
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    app.run(host="0.0.0.0", port=8000, debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")  # nosec B104
