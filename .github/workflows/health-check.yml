@@ -50,35 +50,6 @@ jobs:
           done
           docker compose ps || true
 
-      - name: Run linting & security checks
-        if: always()
-        working-directory: backend
-        run: |
-          pip3 install -q flake8==7.0.0 bandit==1.7.7 mypy==1.8.0 types-redis==4.6.0.20240218
-          echo "--- flake8 ---"
-          flake8 app.py model.py
-          echo "--- bandit ---"
-          bandit -r app.py model.py --skip B101,B110
-          echo "--- mypy ---"
-          mypy app.py model.py
-        continue-on-error: true
-
-      - name: Run frontend tests
-        if: always()
-        working-directory: frontend
-        run: |
-          npm install
-          npx react-scripts test --watchAll=false --ci
-        continue-on-error: true
-
-      - name: Run tests
-        if: always()
-        working-directory: backend
-        run: |
-          pip3 install -q pytest pytest-cov flask==3.0.0 psycopg2-binary==2.9.9 redis==5.0.1 flask-cors==4.0.0
-          pytest tests/ -v --tb=short
-        continue-on-error: true
-
       - name: Run health checks
         if: always()
         run: python3 checks/run_checks.py

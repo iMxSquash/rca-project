@@ -1,0 +1,41 @@
+name: "🔍 Linting & Security"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: pip install -q flake8==7.0.0 bandit==1.7.7 mypy==1.8.0 types-redis==4.6.0.20240218
+
+      - name: Run flake8
+        run: flake8 app.py model.py
+
+      - name: Run bandit
+        run: bandit -r app.py model.py --skip B101,B110
+
+      - name: Run mypy
+        run: mypy app.py model.py
