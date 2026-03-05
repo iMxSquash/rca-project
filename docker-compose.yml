@@ -21,7 +21,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: "postgres://taskuser:taskpass@db:5432/taskdb"
+      DATABASE_URL: "postgresql://taskuser:taskpass@db:5432/taskdb"
       REDIS_URL: "redis://redis:6379/0"
     depends_on:
       - db
