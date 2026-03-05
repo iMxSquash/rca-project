@@ -2,11 +2,12 @@ import json
 import os
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, Response
 from flask_cors import CORS
 import psycopg2
 import psycopg2.extras
-import redis
+import psycopg2.extensions
+import redis as redis_lib
 
 app = Flask(__name__)
 CORS(app)
@@ -14,25 +15,25 @@ CORS(app)
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://taskuser:taskpass@db:5432/taskdb")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
-def get_db():
+def get_db() -> psycopg2.extensions.connection:
     if "db" not in g:
         g.db = psycopg2.connect(DATABASE_URL)
         g.db.autocommit = True
     return g.db
 
-def get_redis():
+def get_redis() -> redis_lib.Redis:  # type: ignore[type-arg]
     if "redis" not in g:
-        g.redis = redis.from_url(REDIS_URL)
+        g.redis = redis_lib.from_url(REDIS_URL)
     return g.redis
 
 @app.teardown_appcontext
-def close_db(exception):
+def close_db(exception: BaseException | None) -> None:
     db = g.pop("db", None)
     if db is not None:
         db.close()
 
 @app.before_request
-def log_request():
+def log_request() -> None:
     try:
         g.start_time = datetime.now()
         app.logger.info(f"{request.method} {request.path}")
@@ -40,7 +41,7 @@ def log_request():
         pass
 
 @app.after_request
-def after_request(response):
+def after_request(response: Response) -> Response:
     try:
         duration = datetime.now() - g.start_time
         app.logger.info(f"{request.method} {request.path} -> {response.status_code} ({duration.total_seconds():.3f}s)")
@@ -49,7 +50,7 @@ def after_request(response):
     return response
 
 @app.route("/health")
-def health():
+def health() -> Response:
     result = {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
     try:
         db = get_db()
@@ -63,7 +64,7 @@ def health():
     return jsonify(result)
 
 @app.route("/api/tasks", methods=["GET"])
-def list_tasks():
+def list_tasks() -> Response:
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     status = request.args.get("status")
@@ -92,7 +93,7 @@ def list_tasks():
     return jsonify(result)
 
 @app.route("/api/tasks", methods=["POST"])
-def create_task():
+def create_task() -> Response | tuple[Response, int]:
     data = request.get_json()
     if not data or not data.get("title"):
         app.logger.warning("POST /api/tasks - 400 Title is required")
@@ -118,7 +119,7 @@ def create_task():
     }), 201
 
 @app.route("/api/tasks/<int:task_id>", methods=["GET"])
-def get_task(task_id):
+def get_task(task_id: int) -> Response | tuple[Response, int]:
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
@@ -134,7 +135,7 @@ def get_task(task_id):
     })
 
 @app.route("/api/tasks/<int:task_id>", methods=["PUT"])
-def update_task(task_id):
+def update_task(task_id: int) -> Response | tuple[Response, int]:
     data = request.get_json()
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -160,7 +161,7 @@ def update_task(task_id):
     })
 
 @app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
-def delete_task(task_id):
+def delete_task(task_id: int) -> tuple[str, int]:
     db = get_db()
     cur = db.cursor()
     cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
@@ -169,7 +170,7 @@ def delete_task(task_id):
     return "", 204
 
 @app.route("/api/search", methods=["GET"])
-def search_tasks():
+def search_tasks() -> Response:
     q = request.args.get("q", "")
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -188,7 +189,7 @@ def search_tasks():
     return jsonify(serialized)
 
 @app.route("/api/stats", methods=["GET"])
-def get_stats():
+def get_stats() -> Response:
     r = get_redis()
     cached = r.get("stats")
     if cached:
